@@ -1,0 +1,3 @@
+meta_learning/saved
+*.pyc
+MNIST-data
