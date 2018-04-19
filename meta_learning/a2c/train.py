@@ -23,7 +23,8 @@ def train():
     writer = tf.summary.FileWriter(os.path.join(CONFIG.dpath_model, 'train'))
     saver = tf.train.Saver(keep_checkpoint_every_n_hours=2.0, max_to_keep=10)
 
-    _add_weight_histograms()
+    if CONFIG.histogram_parameters:
+        _add_histograms()
 
     with tf.Session() as sess:
 
@@ -183,7 +184,7 @@ def _setup(env_name: str, seed: int, gs: tf.Variable):
     return env, policy_net, value_net
 
 
-def _add_weight_histograms(scope=None):
+def _add_histograms(scope=None):
 
     trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
 

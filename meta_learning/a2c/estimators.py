@@ -88,7 +88,7 @@ class PolicyEstimator(Estimator):
     def _regularize_action_means(self, action_means):
 
         self.mix_grad = tf.train.inverse_time_decay(
-            learning_rate=1.0,
+            learning_rate=CONFIG.mix_start,
             global_step=self.gs,
             decay_steps=CONFIG.mix_halflife,
             decay_rate=0.5,
