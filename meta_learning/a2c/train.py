@@ -72,7 +72,9 @@ def train():
                         break
                 path = {"observation": np.array(observations),
                         "reward": np.array(rewards),
-                        "action": np.array(actions)}
+                        "action": np.array(actions),
+                        "last_observation": obs,
+                        }
                 paths.append(path)
 
             # Build arrays for observation, action for the policy gradient update by concatenating
@@ -80,7 +82,7 @@ def train():
             observations = np.array([path["observation"] for path in paths])
             actions = np.array([path["action"] for path in paths])
 
-            q_n = []
+            qs, final_obs = [], []
 
             # Multiply each step in path by appropriate discount
             for path in paths:
@@ -89,25 +91,39 @@ def train():
                 discounted_rew_seq = discounts * path["reward"]
                 q_path = np.cumsum(discounted_rew_seq[::-1])[::-1] / discounts
 
-                q_n.append(q_path)
+                qs.append(q_path)
+                final_obs.append(path['last_observation'])
 
-            q_n = np.array(q_n)
+            qs = np.array(qs)
+            final_obs = np.array(final_obs)
 
-            val_predicted = sess.run(value_net.predicted_values, {value_net.observations: observations})
-            val_predicted_norm = _normalize(val_predicted, q_n.mean(), q_n.std())
-            adv_n = q_n - val_predicted_norm
+            observations_w_final = np.concatenate([observations, final_obs[:, None]], axis=1)
+
+            feed = {
+                value_net.observations: observations_w_final
+            }
+
+            vals = sess.run(value_net.predicted_values, feed)
+            vals, vals_final = np.split(vals, [-1], axis=1)
+
+            n_timesteps = qs.shape[1]
+            vals_final_disc = vals_final * (np.arange(n_timesteps, 0, -1) ** CONFIG.discount)
+            qs = qs + vals_final_disc
+
+            vals_norm = _normalize(vals, qs.mean(), qs.std())
+            advs = qs - vals_norm
 
             if not CONFIG.dont_normalize_advantages:
-                adv_n = _normalize(adv_n)
+                advs = _normalize(advs)
 
             recurrent_state = np.zeros((2, observations.shape[0], policy_net.state_placeholders[0].shape[-1]))
 
             feed_dict = {
                 policy_net.observations: observations,
                 policy_net.actions: actions,
-                policy_net.targets: adv_n,
+                policy_net.targets: advs,
                 value_net.observations: observations,
-                value_net.targets: _normalize(q_n),
+                value_net.targets: _normalize(qs),
                 policy_net.state_placeholders[0]: recurrent_state[0],
                 policy_net.state_placeholders[1]: recurrent_state[1]
             }
