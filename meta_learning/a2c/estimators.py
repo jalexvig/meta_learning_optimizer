@@ -9,27 +9,6 @@ from meta_learning import CONFIG
 STABILITY = 1e-8
 
 
-def build_policy_net(
-    input_placeholder,
-    ac_dim,
-):
-
-    with tf.variable_scope('hidden'):
-        lstm1 = LSTMCell(CONFIG.num_lstm_units)
-
-        # batch_size, num_units
-        c = tf.placeholder(tf.float32, shape=[None, CONFIG.num_lstm_units], name='c_state')
-        h = tf.placeholder(tf.float32, shape=[None, CONFIG.num_lstm_units], name='h_state')
-        state_placeholders = tf.contrib.rnn.LSTMStateTuple(c, h)
-
-    h1, new_state = tf.nn.dynamic_rnn(lstm1, input_placeholder, initial_state=state_placeholders)
-
-    with tf.variable_scope('output'):
-        output_layer = fully_connected(h1, ac_dim)
-
-    return output_layer, state_placeholders, new_state
-
-
 def build_value_net(
     input_placeholder,
 ):
@@ -48,6 +27,7 @@ class Estimator(object):
 
         # Batch, time, actions
         self.observations = tf.placeholder(shape=[None, None, obs_dim], name="observations", dtype=tf.float32)
+
         self.targets = tf.placeholder(shape=[None, None], name='targets', dtype=tf.float32)
 
 
@@ -62,28 +42,78 @@ class PolicyEstimator(Estimator):
         # Batch, time, actions
         self.actions = tf.placeholder(shape=[None, None, ac_dim], name="actions", dtype=tf.float32)
 
+        if CONFIG.no_xover:
+            observations = self._create_obs_no_xover(obs_dim)
+            num_outputs = 1
+        else:
+            observations = self.observations
+            num_outputs = ac_dim
+
         with tf.variable_scope('policy_net'):
 
-            action_means, self.state_placeholders, self.new_state = build_policy_net(self.observations, ac_dim)
-            action_means_reg = self._regularize_action_means(action_means)
-            action_std = tf.exp(tf.Variable(tf.zeros([ac_dim])))
+            self.action_means = self._build(observations, num_outputs)
+
+            if CONFIG.no_xover:
+                dims = tf.shape(self.action_means)
+                self.action_means = tf.reshape(self.action_means, [-1, dims[1], ac_dim])
+
+            self.action_means_reg = self._regularize_action_means(self.action_means)
+            self.action_stds = tf.exp(tf.Variable(tf.zeros([ac_dim])))
 
             # Draw an action
-            self.sampled = action_means_reg + tf.random_normal(tf.shape(action_means_reg)) * action_std
+            self.sampled = self.action_means_reg + tf.random_normal(tf.shape(self.action_means_reg)) * self.action_stds
 
             if CONFIG.grad_reg:
                 self.sampled = tf.clip_by_norm(self.sampled, CONFIG.grad_reg)
 
             # Calculate logprobability of multivariate gaussian
-            z_scores = (self.actions - action_means_reg) / (action_std + STABILITY)
+            self.z_scores = (self.actions - self.action_means_reg) / (self.action_stds + STABILITY)
             consts = tf.log(tf.cast(ac_dim, tf.float32)) - 1/2 * tf.log(2 * np.pi)
-            logprobs = consts - 1/2 * tf.reduce_sum(tf.square(z_scores), axis=-1)
+            self.logprobs = consts - 1/2 * tf.reduce_sum(tf.square(self.z_scores), axis=-1)
 
             # Targets are advantages
-            self.loss = -tf.reduce_mean(tf.multiply(logprobs, self.targets), name='loss')
+            self.loss = -tf.reduce_mean(tf.multiply(self.logprobs, self.targets), name='loss')
             self.update_op = tf.train.AdamOptimizer().minimize(self.loss)
 
             tf.summary.scalar('loss', self.loss)
+
+    def _create_obs_no_xover(self, obs_dim):
+
+        rews1 = tf.tile(self.observations[:, :, :1], multiples=[1, 1, obs_dim - 1])
+        rews2 = tf.transpose(rews1, [0, 2, 1])
+        dims = tf.shape(rews2)
+        rews3 = tf.reshape(rews2, [dims[0] * dims[1], dims[2]])
+
+        grads = tf.transpose(self.observations[:, :, 1:], [0, 2, 1])
+        dims = tf.shape(grads)
+        grads_flattened = tf.reshape(grads, [dims[0] * dims[1], dims[2]])
+
+        observations_no_xover = tf.stack((grads_flattened, rews3), axis=-1)
+
+        return observations_no_xover
+
+    def _build(
+        self,
+        input_placeholder,
+        num_outputs,
+    ):
+
+        with tf.variable_scope('hidden'):
+            self.lstm1 = LSTMCell(CONFIG.num_lstm_units)
+
+            shape = [None, CONFIG.num_lstm_units]
+
+            # batch_size, num_units
+            c = tf.placeholder(tf.float32, shape=shape, name='c_state')
+            h = tf.placeholder(tf.float32, shape=shape, name='h_state')
+            self.state_placeholders = tf.contrib.rnn.LSTMStateTuple(c, h)
+
+        h1, self.new_state = tf.nn.dynamic_rnn(self.lstm1, input_placeholder, initial_state=self.state_placeholders)
+
+        with tf.variable_scope('output'):
+            output_layer = fully_connected(h1, num_outputs)
+
+        return output_layer
 
     def _regularize_action_means(self, action_means):
 

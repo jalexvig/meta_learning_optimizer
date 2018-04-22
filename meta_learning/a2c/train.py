@@ -26,6 +26,8 @@ def train():
 
     with tf.Session() as sess:
 
+        writer.add_graph(sess.graph)
+
         if CONFIG.debug:
             sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 
@@ -48,7 +50,7 @@ def train():
                 render_this_episode = (not paths and (batch_idx % 10 == 0) and CONFIG.render)
                 steps = 0
 
-                recurrent_state = np.zeros((2, 1, policy_net.state_placeholders[0].shape[-1]))
+                recurrent_state = get_recurrent_zero_state(obs, policy_net)
 
                 for _ in itertools.count():
                     if render_this_episode:
@@ -62,7 +64,7 @@ def train():
                         policy_net.state_placeholders[1]: recurrent_state[1]
                     }
 
-                    sampled_action, recurrent_state, gs_env_val = sess.run(
+                    sampled_action, recurrent_state, _ = sess.run(
                         [policy_net.sampled, policy_net.new_state, inc_gs],
                         feed_dict=feed)
 
@@ -118,9 +120,9 @@ def train():
             if not CONFIG.dont_normalize_advantages:
                 advs = _normalize(advs)
 
-            recurrent_state = np.zeros((2, observations.shape[0], policy_net.state_placeholders[0].shape[-1]))
+            recurrent_state = get_recurrent_zero_state(observations, policy_net)
 
-            feed_dict = {
+            feed = {
                 policy_net.observations: observations,
                 policy_net.actions: actions,
                 policy_net.targets: advs,
@@ -132,13 +134,11 @@ def train():
 
             summaries = tf.summary.merge_all(tf.GraphKeys.SUMMARIES)
 
-            policy_loss, _, value_loss, _, summaries_all = sess.run([
-                policy_net.loss,
+            _, _, summaries_all = sess.run([
                 policy_net.update_op,
-                value_net.loss,
                 value_net.update_op,
                 summaries,
-            ], feed_dict=feed_dict)
+            ], feed_dict=feed)
 
             writer.add_summary(summaries_all, global_step=batch_idx + 1)
 
@@ -147,6 +147,21 @@ def train():
             writer.flush()
 
         saver.save(sess, os.path.join(CONFIG.dpath_model, 'checkpoints', 'model'))
+
+
+def get_recurrent_zero_state(obs, policy_net):
+
+    if len(obs.shape) > 1:
+        effective_batch_size = obs.shape[0]
+    else:
+        effective_batch_size = 1
+
+    if CONFIG.no_xover:
+        effective_batch_size *= obs.shape[-1] - 1
+
+    zero_state = np.zeros((2, effective_batch_size, policy_net.state_placeholders[0].shape[-1]))
+
+    return zero_state
 
 
 def _setup():

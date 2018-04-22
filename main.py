@@ -18,11 +18,12 @@ def parse_flags():
     parser.add_argument('--dont_normalize_advantages', '-dna', action='store_true')
     parser.add_argument("--mix_halflife", default=10000.0, help="Halflife of gradient/action mixture", type=float)
     parser.add_argument("--mix_start", default=1.0, help="Starting weight for gradient", type=float)
-    parser.add_argument("--batch_size", default=2, help="Batch size", type=int)
+    parser.add_argument("--batch_size", default=3, help="Batch size", type=int)
     parser.add_argument("--discount", default=0.99, help="Discount rate for rewards", type=float)
     parser.add_argument("--ep_len", default=10, help="Number of steps before performing an update", type=int)
     parser.add_argument("--num_lstm_units", default=4, help="Number LSTM units", type=int)
     parser.add_argument("--grad_reg", help="Cap for l2 norm of gradients", type=int)
+    parser.add_argument('--no_xover', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument("--histogram_parameters", action='store_true')
     parser.add_argument("--reset", action='store_true',
