@@ -1,20 +1,14 @@
-import numpy as np
 import tensorflow as tf
 
 from meta_learning.environments import BinaryClassifier
 
 
-SEED = 2
 LR = 0.01
 
 env_kwargs = {
     'reset_every': 20,
     'writer': tf.summary.FileWriter('../saved/relu')
 }
-
-
-tf.set_random_seed(SEED)
-np.random.seed(SEED)
 
 env = BinaryClassifier(**env_kwargs)
 

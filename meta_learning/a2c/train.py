@@ -15,10 +15,7 @@ STABILITY = 1e-8
 
 def train():
 
-    gs_env = tf.Variable(0, trainable=False, name='global_step_env')
-    inc_gs = tf.assign_add(gs_env, 1)
-
-    env, policy_net, value_net = _setup(CONFIG.env, CONFIG.seed, gs_env)
+    env, inc_gs, policy_net, value_net = _setup()
 
     writer = tf.summary.FileWriter(os.path.join(CONFIG.dpath_model, 'train'))
     saver = tf.train.Saver(keep_checkpoint_every_n_hours=2.0, max_to_keep=10)
@@ -148,29 +145,29 @@ def train():
         saver.save(sess, os.path.join(CONFIG.dpath_model, 'checkpoints', 'model'))
 
 
-def _setup(env_name: str, seed: int, gs: tf.Variable):
+def _setup():
     """
     Initialize environment, policy model, and value model.
     Args:
-        env_name: Name of environment.
-        seed: Random seed to set
-        gs: Policy step
 
     Returns:
         (gym.Environment, policy model, value model)
     """
 
     # Set random seeds
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
+    tf.set_random_seed(CONFIG.seed)
+    np.random.seed(CONFIG.seed)
+
+    gs_env = tf.Variable(0, trainable=False, name='global_step_env')
+    inc_gs = tf.assign_add(gs_env, 1)
 
     # Make the gym environment
-    if env_name == 'mnist':
+    if CONFIG.env == 'mnist':
         env = MNIST()
-    elif env_name == 'binary':
+    elif CONFIG.env == 'binary':
         env = BinaryClassifier()
     else:
-        raise ValueError('Do not recognize environment ', env_name)
+        raise ValueError('Do not recognize environment ', CONFIG.env)
 
     discrete = isinstance(env.action_space, gym.spaces.Discrete)
 
@@ -178,10 +175,10 @@ def _setup(env_name: str, seed: int, gs: tf.Variable):
     ob_dim = env.observation_space.shape[0]
     ac_dim = env.action_space.n if discrete else env.action_space.shape[0]
 
-    policy_net = PolicyEstimator(ob_dim, ac_dim, gs)
+    policy_net = PolicyEstimator(ob_dim, ac_dim, gs_env)
     value_net = ValueEstimator(ob_dim)
 
-    return env, policy_net, value_net
+    return env, inc_gs, policy_net, value_net
 
 
 def _add_histograms(scope=None):
