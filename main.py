@@ -27,6 +27,7 @@ def parse_flags():
     parser.add_argument("--histogram_parameters", action='store_true')
     parser.add_argument("--reset", action='store_true',
                         help="If set, delete the existing model directory and start training from scratch.")
+    parser.add_argument('--debug', action='store_true')
     parser.add_argument("--run_name", default="default", help="Name of run.")
 
     parser.parse_args(namespace=CONFIG)

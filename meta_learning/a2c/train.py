@@ -5,6 +5,7 @@ import time
 import gym
 import numpy as np
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 
 from meta_learning import CONFIG
 from meta_learning.a2c.estimators import PolicyEstimator, ValueEstimator
@@ -24,6 +25,9 @@ def train():
         _add_histograms()
 
     with tf.Session() as sess:
+
+        if CONFIG.debug:
+            sess = tf_debug.LocalCLIDebugWrapperSession(sess)
 
         tf.global_variables_initializer().run()
 
