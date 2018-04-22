@@ -157,11 +157,13 @@ class BinaryClassifier(gym.Env):
         feed = {self.inputs: self.X, self.targets: self.y}
 
         merged_summaries = tf.summary.merge_all(scope='model')
-        rew, grads, summaries = self.sess.run([-self.loss, self.grads, merged_summaries], feed)
+        if merged_summaries and self.writer:
+            rew, grads, summaries = self.sess.run([-self.loss, self.grads, merged_summaries], feed)
 
-        if self.writer:
             self.writer.add_summary(summaries, global_step=self.count)
             self.writer.flush()
+        else:
+            rew, grads = self.sess.run([-self.loss, self.grads], feed)
 
         self.count += 1
 
