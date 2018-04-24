@@ -169,7 +169,7 @@ def _setup():
     if CONFIG.env == 'mnist':
         env = MNIST()
     elif CONFIG.env == 'binary':
-        env = BinaryClassifier()
+        env = BinaryClassifier(done_every=CONFIG.ep_len)
     else:
         raise ValueError('Do not recognize environment ', CONFIG.env)
 
