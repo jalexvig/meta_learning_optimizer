@@ -9,18 +9,6 @@ from meta_learning import CONFIG
 STABILITY = 1e-8
 
 
-def build_value_net(
-    input_placeholder,
-):
-
-    with tf.variable_scope('output'):
-        output_layer = fully_connected(input_placeholder, 1)
-
-    output_layer = tf.squeeze(output_layer, axis=-1)
-
-    return output_layer
-
-
 class Estimator(object):
 
     def __init__(self, obs_dim):
@@ -168,10 +156,22 @@ class ValueEstimator(Estimator):
 
         with tf.variable_scope('value_net'):
 
-            self.predicted_values = build_value_net(self.observations)
+            self.predicted_values = self._build(self.observations)
 
             self.loss = tf.nn.l2_loss(self.predicted_values - self.targets)
 
             self.update_op = tf.train.AdamOptimizer().minimize(self.loss)
 
             tf.summary.scalar('loss', self.loss)
+
+    def _build(
+        self,
+        input_placeholder,
+    ):
+
+        with tf.variable_scope('output'):
+            output_layer = fully_connected(input_placeholder, 1)
+
+        output_layer = tf.squeeze(output_layer, axis=-1)
+
+        return output_layer
