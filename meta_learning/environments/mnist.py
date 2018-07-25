@@ -58,7 +58,7 @@ class MNIST(gym.Env):
         total_num_W = sum(num_W)
 
         self.action_space = gym.spaces.Box(-np.inf, np.inf, shape=[total_num_W], dtype=np.float32)
-        self.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=[total_num_W + 1], dtype=np.float32)
+        self.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=[total_num_W], dtype=np.float32)
 
         self.processed_grads = tf.placeholder(tf.float32, name='processed_grads', shape=[total_num_W])
 
@@ -116,7 +116,7 @@ class MNIST(gym.Env):
     def _get_obs_rew(self):
 
         rew, grads = self.sess.run([-self.loss, self.grads], {self.inputs: self.X, self.targets: self.y})
-        obs = np.concatenate([[rew]] + [x.flatten() for x in grads])
+        obs = np.concatenate([x.flatten() for x in grads])
 
         return obs, rew
 

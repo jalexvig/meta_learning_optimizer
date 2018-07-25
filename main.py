@@ -23,10 +23,11 @@ def parse_flags():
     parser.add_argument('--batch_size', default=3, type=int, help='Batch size when collecting gradients for policy.')
     parser.add_argument('--discount', default=0.99, type=float, help='Discount rate for rewards.')
     parser.add_argument('--ep_len', default=10, type=int, help='Number of steps before performing an update.')
-    parser.add_argument('--num_lstm_units', default=4, type=int, help='Number LSTM units in policy hidden layer.')
+    parser.add_argument('--num_lstm_units', default=3, type=int, help='Number LSTM units in policy hidden layer.')
     parser.add_argument('--grad_reg', type=int, help='Cap for l2 norm of gradients.')
     parser.add_argument('--no_xover', action='store_true', help='Treat each gradient as separate input to policy.')
     parser.add_argument('--render', action='store_true', help='Not implemented.')
+    parser.add_argument('--load_params_torch', help='Load policy parameters from a pytorch model.')
     parser.add_argument('--histogram_parameters', action='store_true', help='Record histogram of parameters.')
     parser.add_argument('--reset', action='store_true',
                         help='Delete the existing model directory and start training from scratch.')

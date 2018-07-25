@@ -4,7 +4,7 @@ from tensorflow.contrib.rnn import LSTMCell
 from tensorflow.contrib.layers import fully_connected
 
 
-from meta_learning import CONFIG
+from meta_learning import CONFIG, saved_weights
 
 STABILITY = 1e-8
 
@@ -31,7 +31,7 @@ class PolicyEstimator(Estimator):
         self.actions = tf.placeholder(shape=[None, None, ac_dim], name="actions", dtype=tf.float32)
 
         if CONFIG.no_xover:
-            observations = self._create_obs_no_xover(obs_dim)
+            observations = self._create_obs_no_xover()
             num_outputs = 1
         else:
             observations = self.observations
@@ -65,18 +65,11 @@ class PolicyEstimator(Estimator):
 
             tf.summary.scalar('loss', self.loss)
 
-    def _create_obs_no_xover(self, obs_dim):
+    def _create_obs_no_xover(self):
 
-        rews1 = tf.tile(self.observations[:, :, :1], multiples=[1, 1, obs_dim - 1])
-        rews2 = tf.transpose(rews1, [0, 2, 1])
-        dims = tf.shape(rews2)
-        rews3 = tf.reshape(rews2, [dims[0] * dims[1], dims[2]])
-
-        grads = tf.transpose(self.observations[:, :, 1:], [0, 2, 1])
+        grads = tf.transpose(self.observations, [0, 2, 1])
         dims = tf.shape(grads)
-        grads_flattened = tf.reshape(grads, [dims[0] * dims[1], dims[2]])
-
-        observations_no_xover = tf.stack((grads_flattened, rews3), axis=-1)
+        observations_no_xover = tf.reshape(grads, [dims[0] * dims[1], dims[2], 1], 'obs_no_xover')
 
         return observations_no_xover
 
@@ -87,7 +80,8 @@ class PolicyEstimator(Estimator):
     ):
 
         with tf.variable_scope('hidden'):
-            self.lstm1 = LSTMCell(CONFIG.num_lstm_units)
+            # forget_bias kwarg is necessary to load params
+            self.lstm1 = LSTMCell(CONFIG.num_lstm_units, forget_bias=0.0)
 
             shape = [None, CONFIG.num_lstm_units]
 
@@ -100,6 +94,17 @@ class PolicyEstimator(Estimator):
 
         with tf.variable_scope('output'):
             output_layer = fully_connected(h1, num_outputs)
+
+        if CONFIG.load_params_torch:
+
+            kernel_tf, bias_tf = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='policy_net/rnn')
+
+            kernel_torch, bias_torch = saved_weights.get_lstm_kernel_bias_torch(CONFIG.load_params_torch)
+
+            self.assign_ops = [
+                tf.assign(kernel_tf, tf.constant(kernel_torch)),
+                tf.assign(bias_tf, tf.constant(bias_torch)),
+            ]
 
         return output_layer
 
@@ -114,12 +119,13 @@ class PolicyEstimator(Estimator):
 
         self.lr = tf.subtract(1.0, self.mix_grad, name='policy_learning_rate')
 
-        grads = self.observations[:, :, 1:]
-
         tf.summary.scalar('lr', self.lr)
         tf.summary.scalar('mix_grad_rate', self.mix_grad)
 
-        t_dict = {'grads': grads, 'actionus': action_means, 'diff_grad_actionus': grads - action_means}
+        # self.observations are gradients
+
+        t_dict = {'grads': self.observations, 'actionus': action_means,
+                  'diff_grad_actionus': self.observations - action_means}
         dist_dict = {'l1': 1, 'l2': 2, 'inf': np.inf}
 
         for t_name, t in t_dict.items():
@@ -135,13 +141,13 @@ class PolicyEstimator(Estimator):
         # grads_norm = tf.nn.l2_normalize(grads, axis=-1) * tf.norm(action_means, axis=-1, keepdims=True)
         # action_means_mix = self.mix_grad * grads_norm + (1 - self.mix_grad) * action_means
 
-        norm = tf.add(self.mix_grad * tf.norm(grads, axis=-1, keepdims=True),
+        norm = tf.add(self.mix_grad * tf.norm(self.observations, axis=-1, keepdims=True),
                       (1 - self.mix_grad) * tf.norm(action_means, axis=-1, keepdims=True),
                       name='action_l2_norm')
 
         action_means_norm = tf.nn.l2_normalize(action_means, axis=-1) * norm
 
-        action_means_mix = self.mix_grad * grads + (1 - self.mix_grad) * action_means_norm
+        action_means_mix = self.mix_grad * self.observations + (1 - self.mix_grad) * action_means_norm
 
         action_means_mix *= self.lr
 

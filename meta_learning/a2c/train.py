@@ -33,6 +33,9 @@ def train():
 
         tf.global_variables_initializer().run()
 
+        if CONFIG.load_params_torch:
+            sess.run(policy_net.assign_ops)
+
         latest_checkpoint = tf.train.latest_checkpoint(CONFIG.dpath_checkpoint)
 
         if latest_checkpoint:
@@ -157,7 +160,7 @@ def get_recurrent_zero_state(obs, policy_net):
         effective_batch_size = 1
 
     if CONFIG.no_xover:
-        effective_batch_size *= obs.shape[-1] - 1
+        effective_batch_size *= obs.shape[-1]
 
     zero_state = np.zeros((2, effective_batch_size, policy_net.state_placeholders[0].shape[-1]))
 
