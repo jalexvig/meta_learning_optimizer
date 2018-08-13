@@ -109,6 +109,18 @@ class PolicyEstimator(Estimator):
         return output_layer
 
     def _regularize_action_means(self, action_means):
+        """
+        Mix action means with original gradients to stabilize training.
+
+        Args:
+            action_means: Action means from policy.
+
+        Returns:
+            Mixture.
+        """
+
+        if not CONFIG.mix_start:
+            return action_means
 
         self.mix_grad = tf.train.inverse_time_decay(
             learning_rate=CONFIG.mix_start,
@@ -142,7 +154,7 @@ class PolicyEstimator(Estimator):
         # action_means_mix = self.mix_grad * grads_norm + (1 - self.mix_grad) * action_means
 
         norm = tf.add(self.mix_grad * tf.norm(self.observations, axis=-1, keepdims=True),
-                      (1 - self.mix_grad) * tf.norm(action_means, axis=-1, keepdims=True),
+                      self.lr * tf.norm(action_means, axis=-1, keepdims=True),
                       name='action_l2_norm')
 
         action_means_norm = tf.nn.l2_normalize(action_means, axis=-1) * norm
