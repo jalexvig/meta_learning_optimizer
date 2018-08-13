@@ -97,13 +97,16 @@ class PolicyEstimator(Estimator):
 
         if CONFIG.load_params_torch:
 
-            kernel_tf, bias_tf = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='policy_net/rnn')
+            lstm_kernel_tf, lstm_bias_tf = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='policy_net/rnn')
+            fc_kernel_tf, fc_bias_tf = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='policy_net/output')
 
-            kernel_torch, bias_torch = saved_weights.get_lstm_kernel_bias_torch(CONFIG.load_params_torch)
+            params_torch = saved_weights.get_lstm_kernel_bias_torch(CONFIG.load_params_torch)
 
             self.assign_ops = [
-                tf.assign(kernel_tf, tf.constant(kernel_torch)),
-                tf.assign(bias_tf, tf.constant(bias_torch)),
+                tf.assign(lstm_kernel_tf, tf.constant(params_torch['lstm'][0])),
+                tf.assign(lstm_bias_tf, tf.constant(params_torch['lstm'][1])),
+                tf.assign(fc_kernel_tf, tf.constant(params_torch['fc'][0])),
+                tf.assign(fc_bias_tf, tf.constant(params_torch['fc'][1])),
             ]
 
         return output_layer

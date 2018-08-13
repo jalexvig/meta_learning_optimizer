@@ -40,15 +40,23 @@ def get_lstm_kernel_bias_torch(fpath_checkpoint):
     bias_ih = d['rnn.bias_ih_l0']
     bias_hh = d['rnn.bias_hh_l0']
 
-    kernel = torch.cat([kernel_ih, kernel_hh], dim=1).numpy().T
-    bias = (bias_ih + bias_hh).numpy()
+    lstm_kernel = torch.cat([kernel_ih, kernel_hh], dim=1).numpy().T
+    lstm_bias = (bias_ih + bias_hh).numpy()
 
-    return kernel, bias
+    fc_kernel = d['fc1.weight'].numpy().T
+    fc_bias = d['fc1.bias'].numpy()
+
+    res = {
+        'lstm': (lstm_kernel, lstm_bias),
+        'fc': (fc_kernel, fc_bias)
+    }
+
+    return res
 
 
 if __name__ == '__main__':
 
-    fpath = '/Users/alex/ml/lstm_learn_optimizer/saved/multivargauss_binary_adam_sgd_1/checkpoint'
+    fpath = '/home/alex/me/ml/lstm_learn_optimizer/saved/multivargauss_mnist_adam_sgd_0_l2loss/checkpoint'
     kernel, bias = get_lstm_kernel_bias_torch(fpath)
     print(kernel.shape)
     print(bias.shape)
